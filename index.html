@@ -175,27 +175,43 @@
 
     </div>
     <script>
-      let currentUser = ''; // Store the current user
+// Firebase configuration (replace with your Firebase project config)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID",
+    databaseURL: "YOUR_DATABASE_URL"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let currentUser = '';
 const chatBox = document.getElementById('chatBox');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
-const replyContainer = document.getElementById('replyContainer'); // Container for reply context
+const replyContainer = document.getElementById('replyContainer');
 const chatContainer = document.querySelector('.chat-container');
 
 function selectUser(user) {
     currentUser = user; // Set the current user
     chatContainer.style.display = 'block'; // Show the chat container
-    document.getElementById('loginMessage').textContent = `You logged in as ${user}`; // Set the login message
-    document.getElementById('loginMessage').style.display = 'block'; // Show the login message
-
-    // Clear the chat box before loading messages to prevent duplicates
-    chatBox.innerHTML = '';
-    loadMessages(); // Load previous messages
+    document.getElementById('loginMessage').textContent = `You logged in as ${user}`;
+    document.getElementById('loginMessage').style.display = 'block';
+    chatBox.innerHTML = ''; // Clear the chat box
+    loadMessages(); // Load previous messages from Firebase
 }
 
 function loadMessages() {
-    const messages = JSON.parse(localStorage.getItem('messages')) || [];
-    messages.forEach(msg => addMessage(msg.content, msg.sender, false));
+    // Listen for new messages added to Firebase
+    db.ref('messages').on('child_added', (snapshot) => {
+        const msg = snapshot.val();
+        addMessage(msg.content, msg.sender, false);
+    });
 }
 
 function addMessage(content, sender, save = true) {
@@ -217,15 +233,19 @@ function addMessage(content, sender, save = true) {
 
     chatBox.appendChild(message);
 
-    if (save) saveMessage(content, sender);
+    if (save) saveMessage(content, sender); // Save to Firebase if save is true
 
     scrollToBottom(); // Scroll to the latest message after adding a new one
 }
 
 function saveMessage(content, sender) {
-    const messages = JSON.parse(localStorage.getItem('messages')) || [];
-    messages.push({ content, sender });
-    localStorage.setItem('messages', JSON.stringify(messages));
+    // Save message to Firebase
+    const messageRef = db.ref('messages').push();
+    messageRef.set({
+        content: content,
+        sender: sender,
+        timestamp: Date.now()
+    });
 }
 
 sendBtn.addEventListener('click', () => {
@@ -250,7 +270,6 @@ clearBtn.addEventListener('click', clearMessages); // Add event listener for the
 function clearMessages() {
     let confirmCount = 0; // Initialize confirmation count
 
-    // Loop to ask for confirmation three times
     while (confirmCount < 3) {
         const userConfirmed = confirm("Ano sure kana ba na dedelete mo ha sira ulo ka pala eh!!!!");
         if (userConfirmed) {
@@ -260,29 +279,25 @@ function clearMessages() {
         }
     }
     chatBox.innerHTML = ''; // Clear the chat box
-    localStorage.removeItem('messages'); // Remove messages from localStorage
+    db.ref('messages').remove(); // Remove messages from Firebase
     alert("Messages have been cleared."); // Optional alert for confirmation
 }
 
-// Function to scroll to the latest message
 function scrollToBottom() {
     chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the bottom of the chat box
 }
 
-// Function to handle replying to a message
 function replyToMessage(content, sender) {
     messageInput.value = `Replying to ${sender}: ${content}`; // Populate the input with the message content
     messageInput.focus(); // Focus on the input field for editing
     displayReplyContext(content, sender); // Show reply context
 }
 
-// Function to display reply context
 function displayReplyContext(content, sender) {
     replyContainer.innerHTML = `<strong>Replying to ${sender}:</strong><br><em>${content}</em>`;
     replyContainer.style.display = 'block'; // Show reply context
 }
 
-// Function to clear reply context
 function clearReply() {
     replyContainer.innerHTML = ''; // Clear reply context
     replyContainer.style.display = 'none'; // Hide reply context
